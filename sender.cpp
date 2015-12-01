@@ -1,6 +1,6 @@
 #include <iostream>
 #include <fstream>
-#include <sstream> 
+#include <sstream>
 #include <stdlib.h>
 #include <string>
 #include <cstring>
@@ -39,16 +39,16 @@ int main(int argc, char** argv) {
 	int sockfd, portno, n, cwnd, end, seqNum = 0, counter = 0, pktNum = 0;
 	struct sockaddr_in servAddr, clientAddr;
 	socklen_t len = sizeof(clientAddr);
-	string filename, line; 
+	string filename, line;
 	char temp[100];
 	Packet initial, current;
 	vector<Packet> pkts;
 	vector<timeval> sent_times;
 	double lossThresh, corruptThresh;
 	timeval curr;
-	
+
 	if (argc < 5) {
-		cerr << "ERROR: Arguments should be of the format" << endl;
+		cerr << "ERROR: Arguments should be of the format:" << endl;
 		cerr << "sender <portnumber> <window_size> <loss_probability> <corruption_probability>" << endl;
 		exit(1);
 	}
@@ -67,20 +67,20 @@ int main(int argc, char** argv) {
 
 	// Set socket and populate sender address
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-	memset((char*) &servAddr, 0, sizeof(servAddr));
+	bzero((char*) &servAddr, sizeof(servAddr));
 	servAddr.sin_family = AF_INET;
 	servAddr.sin_port = htons(portno);
 	servAddr.sin_addr.s_addr = INADDR_ANY;			// Server binds to any/all interfaces
 
 	// Bind sender to socket
 	if (bind(sockfd, (struct sockaddr*) &servAddr, len) == -1) {
-		cerr << "ERROR: Failed to bind socket" << endl; 
+		cerr << "ERROR: Failed to bind socket" << endl;
 		exit(1);
 	}
 
 	// Get file request
 	do {
-		n = recvfrom(sockfd, temp, 100, 0, 
+		n = recvfrom(sockfd, temp, 100, 0,
 			(struct sockaddr*) &clientAddr, &len);
 	} while (n == -1);
 
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
 			seqNum += MAX_PACKET_SIZE;
 			pktNum++;
 		}
-		counter++; 
+		counter++;
 	}
 
 	if (counter != 0) {
@@ -159,13 +159,13 @@ int main(int argc, char** argv) {
 	int next_pktNum = 0;
 
 	// Send all initial pkts
-	// cout << "Original end: " << end << endl; 
+	// cout << "Original end: " << end << endl;
 	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial pkts up to window" << endl;
 
 	for (next_pktNum; next_pktNum <= end && next_pktNum < pkts.size(); next_pktNum++) {
 		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending packet with sequence number ";
 		cout << pkts[next_pktNum].seqNum << endl; //<< " and packet number " << pkts[next_pktNum].pktNum << endl;
-		
+
 		sendto(sockfd, &pkts[next_pktNum], sizeof(pkts[next_pktNum]), 0,
 			(struct sockaddr*) &clientAddr, len);
 
@@ -240,7 +240,7 @@ int main(int argc, char** argv) {
 			//cout << "Old base: " << base << endl;
 			//cout << "Old end: " << end << endl;
 			base = ack.pktNum + 1;
-			end = base + (cwnd/MAX_PACKET_SIZE) - 1; 
+			end = base + (cwnd/MAX_PACKET_SIZE) - 1;
 			//cout << "New base: " << base << endl;
 			//cout << "New end: " << end << endl;
 
@@ -259,5 +259,5 @@ int main(int argc, char** argv) {
 		}
 
 	}
-	
+
 }
