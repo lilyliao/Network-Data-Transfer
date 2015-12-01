@@ -57,6 +57,14 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 	/*
+	Get the sender's address
+	*/
+	struct hostent *sender = gethostbyname(hostname.c_str());
+	if (!sender) {
+		fprintf(stderr, "could not obtain address of %s\n", hostname.c_str());
+		exit(1);
+	}
+	/*
 	Assign the port number to the created socket
 	*/
 	memset((char*) &servAddr, 0, sizeof(servAddr));
@@ -65,14 +73,6 @@ int main(int argc, char** argv) {
 	inet_pton(AF_INET, sender->h_addr_list[0], &(servAddr.sin_addr));
 	servAddr.sin_port = htons(portno);
 
-	/*
-	Get the sender's address
-	*/
-	struct hostent *sender = gethostbyname(hostname.c_str());
-	if (!sender) {
-		fprintf(stderr, "could not obtain address of %s\n", hostname);
-		exit(1);
-	}
 
 	// Send initial request for the file
 	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial request for file " << filename.c_str() << endl << endl;

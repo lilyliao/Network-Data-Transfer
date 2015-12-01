@@ -1,12 +1,12 @@
-all: clientmake sendermake
-clientrmake : client.cpp packet.h
-	g++ -o client client.cpp -I.
-servermake : server.cpp packet.h
-	g++ -o server server.cpp -I.
-clean: clientclean serverclean receivedclean
-clientclean :
-	rm client
-serverclean :
-	rm server
+all: receivermake sendermake
+receivermake : receiver.cpp packet.h
+	g++ -o receiver receiver.cpp -I.
+sendermake : sender.cpp packet.h
+	g++ -o sender sender.cpp -I.
+clean: receiverclean senderclean receivedclean
+receiverclean :
+	rm receiver
+senderclean :
+	rm sender
 receivedclean :
 	rm *.out
