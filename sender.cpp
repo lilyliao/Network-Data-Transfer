@@ -1,27 +1,24 @@
+#include <iostream>
+#include <fstream>
+#include <sstream> 
+#include <stdlib.h>
+#include <string>
+#include <cstring>
+#include <vector>
+#include <time.h>
+
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <errno.h>
 #include <sys/fcntl.h>
-#include <sys/time.h>		// gettimeofday()
-
-#include <iostream>
-#include <string>
-#include <cstring>
-#include <vector>
-#include <fstream>
-#include <sstream> 
-#include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
+#include <errno.h>
 
 #include "packet.h"
 
 using namespace std;
 
-/*
-	This function determines if the packet times out. 
-*/
 bool isTimeout(timeval curr, timeval old) {
 	timeval diff;
 
@@ -32,31 +29,27 @@ bool isTimeout(timeval curr, timeval old) {
 	return ((diff.tv_sec != 0) || (diff.tv_usec > (PACKET_TIMEOUT * 1000)));
 }
 
-/*
-  This function returns the current time as a string, which is used
-  for the Date: header field.
-*/
 string getCurrentTime() {
-  time_t raw_current_time = time(0);
-  string curr_time(ctime(&raw_current_time));
-  return curr_time;
+  time_t rawTime = time(0);
+  string curTime(ctime(&rawTime));
+  return curTime;
 }
 
 int main(int argc, char** argv) {
 	int sockfd, portno, n, cwnd, end, seqNum = 0, counter = 0, pktNum = 0;
-	struct sockaddr_in serv_addr, client_addr;
-	socklen_t len = sizeof(client_addr);
+	struct sockaddr_in servAddr, clientAddr;
+	socklen_t len = sizeof(clientAddr);
 	string filename, line; 
 	char temp[100];
 	Packet initial, current;
 	vector<Packet> pkts;
 	vector<timeval> sent_times;
-	double loss_threshold, corrupt_threshold;
+	double lossThresh, corruptThresh;
 	timeval curr;
 	
 	if (argc < 5) {
-		cerr << "ERROR: Incorrect number of arguments" << endl;
-		cerr << "sender <portnumber> <window_size> <packet_loss_probability> <packet_corruption_probability>" << endl;
+		cerr << "ERROR: Arguments should be of the format" << endl;
+		cerr << "sender <portnumber> <window_size> <loss_probability> <corruption_probability>" << endl;
 		exit(1);
 	}
 
@@ -64,23 +57,23 @@ int main(int argc, char** argv) {
 	cwnd = atoi(argv[2]);
 	end = (cwnd / MAX_PACKET_SIZE) - 1;
 
-	loss_threshold = atof(argv[3]);
-	corrupt_threshold = atof(argv[4]);
+	lossThresh = atof(argv[3]);
+	corruptThresh = atof(argv[4]);
 
-	if (loss_threshold < 0.0 || loss_threshold > 1.0 || corrupt_threshold < 0.0 || corrupt_threshold > 1.0) {
-		cerr << "ERROR: Probabilities should be between 0.0 and 1.0" << endl;
+	if (lossThresh < 0.0 || lossThresh > 0.4 || corruptThresh < 0.0 || corruptThresh > 0.4) {
+		cerr << "ERROR: Probabilities should be between 0.0 and 0.4" << endl;
 		exit(1);
 	}
 
-	// Set socket and populate server address
+	// Set socket and populate sender address
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-	bzero((char*) &serv_addr, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_port = htons(portno);
-	serv_addr.sin_addr.s_addr = INADDR_ANY;			// Server binds to any/all interfaces
+	memset((char*) &servAddr, 0, sizeof(servAddr));
+	servAddr.sin_family = AF_INET;
+	servAddr.sin_port = htons(portno);
+	servAddr.sin_addr.s_addr = INADDR_ANY;			// Server binds to any/all interfaces
 
-	// Bind server to socket
-	if (bind(sockfd, (struct sockaddr*) &serv_addr, len) == -1) {
+	// Bind sender to socket
+	if (bind(sockfd, (struct sockaddr*) &servAddr, len) == -1) {
 		cerr << "ERROR: Failed to bind socket" << endl; 
 		exit(1);
 	}
@@ -88,7 +81,7 @@ int main(int argc, char** argv) {
 	// Get file request
 	do {
 		n = recvfrom(sockfd, temp, 100, 0, 
-			(struct sockaddr*) &client_addr, &len);
+			(struct sockaddr*) &clientAddr, &len);
 	} while (n == -1);
 
 	temp[n] = '\0';
@@ -101,26 +94,26 @@ int main(int argc, char** argv) {
 	ifstream request(filename.c_str(), ios::in | ios::binary);
 
 	if (request) {
-		initial = createPacket(false, seqNum, pktNum);
-		initial.last = true;
+		initial = createPkt(false, seqNum, pktNum);
+		initial.lastPkt = true;
 
 		// Send ACK with initial seq number 0 confirming valid file
 		sendto(sockfd, &initial, sizeof(initial), 0,
-			(struct sockaddr*) &client_addr, len);
+			(struct sockaddr*) &clientAddr, len);
 
 	} else {
-		initial = createPacket(false, -1, pktNum);
-		initial.last = true;
+		initial = createPkt(false, -1, pktNum);
+		initial.lastPkt = true;
 
 		// Send ACK with initial seq number -1 confirming invalid file
 		sendto(sockfd, &initial, sizeof(initial), 0,
-			(struct sockaddr*) &client_addr, len);
+			(struct sockaddr*) &clientAddr, len);
 
 		cerr << "ERROR: File not found" << endl;
 		exit(1);
 	}
 
-	current = createPacket(true, seqNum, pktNum);
+	current = createPkt(true, seqNum, pktNum);
 
 	int dataLength = 0;
 
@@ -137,7 +130,7 @@ int main(int argc, char** argv) {
 			current.seqNum = seqNum;
 			current.pktNum = pktNum;
 
-			current.last = false;
+			current.lastPkt = false;
 			current.dataLength = dataLength;
 
 			pkts.push_back(current);
@@ -155,11 +148,11 @@ int main(int argc, char** argv) {
 		current.seqNum = seqNum;
 		current.pktNum = pktNum;
 		current.dataLength = dataLength;
-		current.last = true;
+		current.lastPkt = true;
 		pkts.push_back(current);
 		pktNum++;
 	} else {
-		pkts[pkts.size() - 1].last = true;
+		pkts[pkts.size() - 1].lastPkt = true;
 	}
 
 	int base = 0;
@@ -174,7 +167,7 @@ int main(int argc, char** argv) {
 		cout << pkts[next_pktNum].seqNum << endl; //<< " and packet number " << pkts[next_pktNum].pktNum << endl;
 		
 		sendto(sockfd, &pkts[next_pktNum], sizeof(pkts[next_pktNum]), 0,
-			(struct sockaddr*) &client_addr, len);
+			(struct sockaddr*) &clientAddr, len);
 
 		gettimeofday(&curr, NULL);
 		sent_times.push_back(curr);
@@ -197,7 +190,7 @@ int main(int argc, char** argv) {
 				cout << pkts[i].seqNum << endl; // << " and packet number " << pkts[i].pktNum << endl;
 
 				sendto(sockfd, &pkts[i], sizeof(pkts[i]), 0,
-					(struct sockaddr*) &client_addr, len);
+					(struct sockaddr*) &clientAddr, len);
 
 				gettimeofday(&curr, NULL);
 				sent_times.push_back(curr);
@@ -209,7 +202,7 @@ int main(int argc, char** argv) {
 		// Get ACK
 		Packet ack;
 		n = recvfrom(sockfd, &ack, sizeof(ack), MSG_DONTWAIT,
-			(struct sockaddr*) &client_addr, &len);
+			(struct sockaddr*) &clientAddr, &len);
 		if (n == 0) {
 			continue;	// No more messages
 		}
@@ -220,16 +213,15 @@ int main(int argc, char** argv) {
 			break;	// Error
 		}
 
-		// Reliability simulation
-		// Packet Loss
-		if (isPacketBad(loss_threshold)) {
+		// Packet Loss simulation
+		if (isPktBad(lossThresh)) {
 			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK " << ack.seqNum << " has been lost!" << endl << endl;
 			// cout << " and packet number " << ack.pktNum << " has been lost!" << endl << endl;
 			continue;
 		}
 
 		// Packet Corruption
-		if (isPacketBad(corrupt_threshold)) {
+		if (isPktBad(corruptThresh)) {
 			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK " << ack.seqNum << " has been corrupted!" << endl << endl;
 			// cout << " and packet number " << ack.pktNum << " has been corrupted!" << endl << endl;
 			continue;
@@ -258,7 +250,7 @@ int main(int argc, char** argv) {
 				// cout << " and packet number " << pkts[next_pktNum].pktNum << endl << endl;
 
 				sendto(sockfd, &pkts[next_pktNum], sizeof(pkts[next_pktNum]), 0,
-					(struct sockaddr*) &client_addr, len);
+					(struct sockaddr*) &clientAddr, len);
 
 				sent_times.erase(sent_times.begin());
 				gettimeofday(&curr, NULL);

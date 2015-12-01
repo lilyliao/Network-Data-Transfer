@@ -7,8 +7,8 @@ const int PACKET_TIMEOUT = 100; // 100 ms = 0.1s
 const int DEFAULT = 10;
 
 struct Packet {
-	bool type;		// True for message, false for ACK
-	bool last;	// True if it is last packet
+	bool type;		// 1: message, 0: ACK
+	bool lastPkt;	
 	int seqNum;
 	int pktNum;
 	int dataLength;
@@ -16,19 +16,17 @@ struct Packet {
 };
 
 /*
-	This function determines if a packet is bad by comparing a randomly
-	generated probability with the threshold probability.
+	simulate a bad packet with the random possibility within the threshold
 */
-bool isPacketBad(double threshold) {
+bool isPktBad(double threshold) {
 	double prob = rand() / (double) RAND_MAX;
 	return prob <= threshold;
 }
 
 /*
-	This function creates a packet with given type, sequence number and
-	packet number.
+	Create a packet with given type, seq number and packet number.
 */
-Packet createPacket(bool msgType, int seq, int packet) {
+Packet createPkt(bool msgType, int seq, int packet) {
 	Packet newPkt;
 
 	newPkt.type = msgType;
