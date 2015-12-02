@@ -48,39 +48,32 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 
-	/*
-	Create a socket
-	*/
+	//Create a socket
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
 		cerr << "ERROR: Cannot create socket" << endl;
 		exit(1);
 	}
-	/*
-	Get the sender's address
-	*/
+	//Get the sender's address
 	struct hostent *sender = gethostbyname(hostname.c_str());
 	if (!sender) {
 		fprintf(stderr, "could not obtain address of %s\n", hostname.c_str());
 		exit(1);
 	}
-	/*
-	Assign the port number to the created socket
-	*/
+	//Assign the port number to the created socket
 	memset((char*) &servAddr, 0, sizeof(servAddr));
 	servAddr.sin_family = AF_INET;
 	//converts the first address in the list into a network address in AF family,and copies to servAddr.sin_addr
 	inet_pton(AF_INET, sender->h_addr_list[0], &(servAddr.sin_addr));
 	servAddr.sin_port = htons(portno);
 
-
 	// Send initial request for the file
-	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial request for file " << filename.c_str() << endl << endl;
+	cout << "Action: Sending initial request for file " << filename.c_str() << endl << endl;
 	n = sendto(sockfd, filename.c_str(), filename.size(), 0,
 		(struct sockaddr*) &servAddr, len);
 
 	// Receive ACK from sender
-	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Receiving ACK for initial request" << endl << endl;
+	cout << "Action: " << "Receiving ACK for initial request" << endl << endl;
 	while (recvfrom(sockfd, &initial, sizeof(initial), 0,
 		(struct sockaddr*) &servAddr, &len) == -1);
 
@@ -98,24 +91,22 @@ int main(int argc, char** argv) {
 			continue;
 		}
 
-		// Packet Loss simulation
+		// Packet Loss
 		if (isPktBad(lossThresh)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seqNum << " has been lost!" << endl << endl;
+			cout << "Action: Packet with sequence number " << msg.seqNum << " has been lost!" << endl << endl;
 			//cout << " and packet number " << msg.pktNum << " has been lost!" << endl << endl;
 			continue;
 		}
 
-		// Packet Corruption simulation
+		// Packet Corruption
 		if (isPktBad(corruptThresh)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seqNum << " has been corrupted!" << endl << endl;
-			//cout << " and packet number " << msg.pktNum << " has been corrupted!" << endl << endl;
+			cout << "Action: Packet with sequence number " << msg.seqNum << " has been corrupted!" << endl << endl;
 			continue;
 		}
 
-		// Packet is received in order
+		// Packet received in order
 		if (msg.pktNum == reqPktNum) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "In order packet received with sequence number " << msg.seqNum << endl << endl;
-			//cout << " and packet number " << msg.pktNum << endl << endl;
+			cout << "Action: In order packet received with sequence number " << msg.seqNum << endl << endl;
 
 			// Extract
 			string data;
@@ -127,11 +118,11 @@ int main(int argc, char** argv) {
 
 			// Make ACK packet
 			curSeqNum += msg.dataLength;
-			ack = createPkt(false, curSeqNum, reqPktNum);
+			ack = createPkt(0, curSeqNum, reqPktNum);
 
 			// Send ACK packet
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending ACK " << ack.seqNum << endl << endl;
-			// cout << " and packet number " << ack.pktNum << endl << endl;
+			cout << "Action: " << "Sending ACK " << ack.seqNum << endl << endl;
+			// cout << " packet number " << ack.pktNum << endl << endl;
 			sendto(sockfd, &ack, sizeof(ack), 0,
 				(struct sockaddr*) &servAddr, sizeof(servAddr));
 
@@ -145,12 +136,12 @@ int main(int argc, char** argv) {
 		}
 		// Out-of-order packet
 		else {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Out of order packet received with sequence number " << msg.seqNum << endl << endl;
+			cout << "Action: " << "Out of order packet received with sequence number " << msg.seqNum << endl << endl;
 			// cout << " and packet number " << msg.pktNum << endl << endl;
 
-			ack = createPkt(false, curSeqNum, reqPktNum - 1);
+			ack = createPkt(0, curSeqNum, reqPktNum - 1);
 
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending ACK " << ack.seqNum << endl << endl;
+			cout << "Action: " << "Sending ACK " << ack.seqNum << endl << endl;
 			// cout << " and packet number " << ack.pktNum << endl << endl;
 
 			// Resend ACK for most recently received in-order packet
@@ -161,7 +152,7 @@ int main(int argc, char** argv) {
 
 	// Send repeated ACK's to ensure that the sender does not have lastPkt ACK dropped
 	// Continue to resend lastPkt packet even after client closes
-	lastPkt = createPkt(false, curSeqNum, reqPktNum - 1);
+	lastPkt = createPkt(0, curSeqNum, reqPktNum - 1);
 	for (int i = 0; i < DEFAULT; i++) {
 		sendto(sockfd, &lastPkt, sizeof(lastPkt), 0,
 			(struct sockaddr*) &servAddr, sizeof(servAddr));
@@ -169,7 +160,7 @@ int main(int argc, char** argv) {
 
 	// Write packet contents to file
 	ofstream output;
-	string output_filename = "a.out";
+	string output_filename = "data.out";
 
 	output.open(output_filename.c_str(), ios::out | ios::binary);
 	if (!output.is_open()) {

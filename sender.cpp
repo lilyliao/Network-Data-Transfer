@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 	socklen_t len = sizeof(clientAddr);
 	string filename, line;
 	char temp[100];
-	Packet initial, current;
+	Packet initial, cur;
 	vector<Packet> pkts;
 	vector<timeval> sent_times;
 	double lossThresh, corruptThresh;
@@ -70,10 +70,10 @@ int main(int argc, char** argv) {
 	bzero((char*) &servAddr, sizeof(servAddr));
 	servAddr.sin_family = AF_INET;
 	servAddr.sin_port = htons(portno);
-	servAddr.sin_addr.s_addr = INADDR_ANY;			// Server binds to any/all interfaces
+	servAddr.sin_addr.s_addr = INADDR_ANY;
 
 	// Bind sender to socket
-	if (bind(sockfd, (struct sockaddr*) &servAddr, len) == -1) {
+	if (bind(sockfd, (struct sockaddr*) &servAddr, len) < 0) {
 		cerr << "ERROR: Failed to bind socket" << endl;
 		exit(1);
 	}
@@ -89,51 +89,44 @@ int main(int argc, char** argv) {
 		filename += temp[i];
 	}
 
-	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Requested File " << filename << endl << endl;
-
+	cout <<"File Requested" << filename << endl << endl;
 	ifstream request(filename.c_str(), ios::in | ios::binary);
-
 	if (request) {
-		initial = createPkt(false, seqNum, pktNum);
+		initial = createPkt(0, seqNum, pktNum);
 		initial.lastPkt = true;
 
-		// Send ACK with initial seq number 0 confirming valid file
+		// Send ACK with initial seq number 0
 		sendto(sockfd, &initial, sizeof(initial), 0,
 			(struct sockaddr*) &clientAddr, len);
-
 	} else {
-		initial = createPkt(false, -1, pktNum);
+		// if invalid file
+		initial = createPkt(0, -1, pktNum);
 		initial.lastPkt = true;
-
-		// Send ACK with initial seq number -1 confirming invalid file
-		sendto(sockfd, &initial, sizeof(initial), 0,
-			(struct sockaddr*) &clientAddr, len);
-
-		cerr << "ERROR: File not found" << endl;
+		// Send ACK with initial seq number -1
+		sendto(sockfd, &initial, sizeof(initial), 0, (struct sockaddr*) &clientAddr, len);
+		cerr << "ERROR: Cannot find file" << endl;
 		exit(1);
 	}
 
-	current = createPkt(true, seqNum, pktNum);
-
+	cur = createPkt(1, seqNum, pktNum);
 	int dataLength = 0;
-
 	// Split data into pkts
 	while (true) {
-		unsigned char c = request.get();
+		unsigned char temp = request.get();
 		if (request.eof()) {
 			break;
 		}
-		current.data[counter] = c;
+		cur.data[counter] = temp;
 		dataLength++;
 
 		if (counter == MAX_PACKET_SIZE - 1) {
-			current.seqNum = seqNum;
-			current.pktNum = pktNum;
+			cur.seqNum = seqNum;
+			cur.pktNum = pktNum;
 
-			current.lastPkt = false;
-			current.dataLength = dataLength;
+			cur.lastPkt = false;
+			cur.dataLength = dataLength;
 
-			pkts.push_back(current);
+			pkts.push_back(cur);
 
 			counter = -1;
 			dataLength = 0;
@@ -144,29 +137,27 @@ int main(int argc, char** argv) {
 	}
 
 	if (counter != 0) {
-		current.data[counter] = '\0';
-		current.seqNum = seqNum;
-		current.pktNum = pktNum;
-		current.dataLength = dataLength;
-		current.lastPkt = true;
-		pkts.push_back(current);
+		cur.data[counter] = '\0';
+		cur.seqNum = seqNum;
+		cur.pktNum = pktNum;
+		cur.dataLength = dataLength;
+		cur.lastPkt = true;
+		pkts.push_back(cur);
 		pktNum++;
 	} else {
 		pkts[pkts.size() - 1].lastPkt = true;
 	}
 
 	int base = 0;
-	int next_pktNum = 0;
+	int nextPkt = 0;
 
 	// Send all initial pkts
-	// cout << "Original end: " << end << endl;
-	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial pkts up to window" << endl;
+	cout << "Action: Sending initial pkts up to window" << endl;
+	for (nextPkt; nextPkt <= end && nextPkt < pkts.size(); nextPkt++) {
+		cout << "Action: Sending packet with sequence number ";
+		cout << pkts[nextPkt].seqNum << endl;
 
-	for (next_pktNum; next_pktNum <= end && next_pktNum < pkts.size(); next_pktNum++) {
-		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending packet with sequence number ";
-		cout << pkts[next_pktNum].seqNum << endl; //<< " and packet number " << pkts[next_pktNum].pktNum << endl;
-
-		sendto(sockfd, &pkts[next_pktNum], sizeof(pkts[next_pktNum]), 0,
+		sendto(sockfd, &pkts[nextPkt], sizeof(pkts[nextPkt]), 0,
 			(struct sockaddr*) &clientAddr, len);
 
 		gettimeofday(&curr, NULL);
@@ -179,15 +170,14 @@ int main(int argc, char** argv) {
 
 		// Check timeouts
 		if (isTimeout(curr, old)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Timeout for packet " << base << endl;
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: Retransmission" << endl;
+			cout << "Event: Timeout for packet " << base << endl;
+			cout << "Event: Retransmission" << endl;
 
 			// Resend all pkts in window
 			sent_times.clear();
-			// cout << "Base: " << base << " Next_pktNum: " << next_pktNum << endl;
-			for (int i = base; i < next_pktNum && i < pkts.size(); i++) {
-				cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Resending packet with sequence number ";
-				cout << pkts[i].seqNum << endl; // << " and packet number " << pkts[i].pktNum << endl;
+			for (int i = base; i < nextPkt && i < pkts.size(); i++) {
+				cout << "Action: Resending packet with sequence number ";
+				cout << pkts[i].seqNum << endl;
 
 				sendto(sockfd, &pkts[i], sizeof(pkts[i]), 0,
 					(struct sockaddr*) &clientAddr, len);
@@ -208,48 +198,42 @@ int main(int argc, char** argv) {
 		}
 		else if (n < 0) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
-				continue;	// No messages immediately available
+				// No messages immediately available
+				continue;
 			}
-			break;	// Error
+			break;
 		}
 
-		// Packet Loss simulation
+		// Packet Loss
 		if (isPktBad(lossThresh)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK " << ack.seqNum << " has been lost!" << endl << endl;
-			// cout << " and packet number " << ack.pktNum << " has been lost!" << endl << endl;
+			cout << "Event: ACK " << ack.seqNum << " has been lost!" << endl << endl;
 			continue;
 		}
 
 		// Packet Corruption
 		if (isPktBad(corruptThresh)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK " << ack.seqNum << " has been corrupted!" << endl << endl;
-			// cout << " and packet number " << ack.pktNum << " has been corrupted!" << endl << endl;
+			cout << "Event: ACK " << ack.seqNum << " has been corrupted!" << endl << endl;
 			continue;
 		}
 
-		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Received ACK " << ack.seqNum  << endl << endl;
-		//cout << " and packet number " << ack.pktNum << endl << endl;
+		cout << "Received ACK " << ack.seqNum  << endl << endl;
 
 		// All ACKS received
 		if (ack.pktNum == pkts.size() - 1)
 				break;
 
-		// Slide the window upon successful cum ACK
+		// Slide the window if received the right ack
 		if (ack.pktNum >= base) {
-
-			//cout << "Old base: " << base << endl;
-			//cout << "Old end: " << end << endl;
 			base = ack.pktNum + 1;
 			end = base + (cwnd/MAX_PACKET_SIZE) - 1;
-			//cout << "New base: " << base << endl;
-			//cout << "New end: " << end << endl;
+			cout << "New base: " << base << endl;
+			cout << "New end: " << end << endl;
 
-			for (next_pktNum; next_pktNum <= end && next_pktNum < pkts.size(); next_pktNum++) {
-				cout << "TIMESTAMP: " << "EVENT: " << getCurrentTime() << "Sending packet with sequence number ";
-				cout << pkts[next_pktNum].seqNum << endl << endl;
-				// cout << " and packet number " << pkts[next_pktNum].pktNum << endl << endl;
+			for (nextPkt; nextPkt <= end && nextPkt < pkts.size(); nextPkt++) {
+				cout << "Action: Sending packet with sequence number ";
+				cout << pkts[nextPkt].seqNum << endl << endl;
 
-				sendto(sockfd, &pkts[next_pktNum], sizeof(pkts[next_pktNum]), 0,
+				sendto(sockfd, &pkts[nextPkt], sizeof(pkts[nextPkt]), 0,
 					(struct sockaddr*) &clientAddr, len);
 
 				sent_times.erase(sent_times.begin());
@@ -257,7 +241,5 @@ int main(int argc, char** argv) {
 				sent_times.push_back(curr);
 			}
 		}
-
 	}
-
 }
