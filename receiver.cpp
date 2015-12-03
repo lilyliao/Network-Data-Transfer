@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 	lossThresh = atof(argv[4]);
 	corruptThresh = atof(argv[5]);
 
-	if (lossThresh < 0.0 || lossThresh > 0.4 || corruptThresh < 0.0 || corruptThresh > 0.4) {
+	if (lossThresh < 0.0 || lossThresh > 1 || corruptThresh < 0.0 || corruptThresh > 1) {
 		cerr << "ERROR: Probability should be between 0.0 and 0.4" << endl;
 		exit(1);
 	}

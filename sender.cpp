@@ -29,12 +29,6 @@ bool isTimeout(timeval curr, timeval old) {
 	return ((diff.tv_sec != 0) || (diff.tv_usec > (PACKET_TIMEOUT * 1000)));
 }
 
-string getCurrentTime() {
-  time_t rawTime = time(0);
-  string curTime(ctime(&rawTime));
-  return curTime;
-}
-
 int main(int argc, char** argv) {
 	int sockfd, portno, n, cwnd, end, seqNum = 0, counter = 0, pktNum = 0;
 	struct sockaddr_in servAddr, clientAddr;
@@ -60,7 +54,7 @@ int main(int argc, char** argv) {
 	lossThresh = atof(argv[3]);
 	corruptThresh = atof(argv[4]);
 
-	if (lossThresh < 0.0 || lossThresh > 0.4 || corruptThresh < 0.0 || corruptThresh > 0.4) {
+	if (lossThresh < 0.0 || lossThresh > 1 || corruptThresh < 0.0 || corruptThresh > 1) {
 		cerr << "ERROR: Probabilities should be between 0.0 and 0.4" << endl;
 		exit(1);
 	}
@@ -77,7 +71,6 @@ int main(int argc, char** argv) {
 		cerr << "ERROR: Failed to bind socket" << endl;
 		exit(1);
 	}
-
 	// Get file request
 	do {
 		n = recvfrom(sockfd, temp, 100, 0,
@@ -89,7 +82,7 @@ int main(int argc, char** argv) {
 		filename += temp[i];
 	}
 
-	cout <<"File Requested" << filename << endl << endl;
+	cout <<"File Requested: " << filename << endl << endl;
 	ifstream request(filename.c_str(), ios::in | ios::binary);
 	if (request) {
 		initial = createPkt(0, seqNum, pktNum);
@@ -122,7 +115,6 @@ int main(int argc, char** argv) {
 		if (counter == MAX_PACKET_SIZE - 1) {
 			cur.seqNum = seqNum;
 			cur.pktNum = pktNum;
-
 			cur.lastPkt = false;
 			cur.dataLength = dataLength;
 
@@ -144,7 +136,8 @@ int main(int argc, char** argv) {
 		cur.lastPkt = true;
 		pkts.push_back(cur);
 		pktNum++;
-	} else {
+	}
+	else {
 		pkts[pkts.size() - 1].lastPkt = true;
 	}
 
@@ -152,10 +145,9 @@ int main(int argc, char** argv) {
 	int nextPkt = 0;
 
 	// Send all initial pkts
-	cout << "Action: Sending initial pkts up to window" << endl;
+	cout << "Action: Sending initial packets up to window" << endl;
 	for (nextPkt; nextPkt <= end && nextPkt < pkts.size(); nextPkt++) {
-		cout << "Action: Sending packet with sequence number ";
-		cout << pkts[nextPkt].seqNum << endl;
+		cout << "Action: Sending packet with sequence number " << pkts[nextPkt].seqNum << endl;
 
 		sendto(sockfd, &pkts[nextPkt], sizeof(pkts[nextPkt]), 0,
 			(struct sockaddr*) &clientAddr, len);
