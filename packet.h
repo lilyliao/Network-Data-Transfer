@@ -3,16 +3,15 @@
 
 const int MAX_PACKET_SIZE = 1024;
 const int HEADER_SIZE = 8;
-const int PACKET_TIMEOUT = 100; // 0.1s
-const int DEFAULT = 10;
+const int TIMEOUT = 100; // 0.1s
 
 struct Packet {
 	bool type;		// 1: message, 0: ACK
 	bool lastPkt;
 	int seqNum;
 	int pktNum;
-	int dataLength;
-	unsigned char data[MAX_PACKET_SIZE];
+	int dataSize;
+	unsigned char content[MAX_PACKET_SIZE];
 };
 
 /*simulate a bad packet(loss or corrupt) with the random possibility within the threshold*/
@@ -21,10 +20,9 @@ bool isPktBad(double threshold) {
 	return prob <= threshold;
 }
 
-/*Create a packet with given type, seq number and packet number.*/
+/*Create a packet with given type(ACK or msg), seq number and packet number.*/
 Packet createPkt(bool msgType, int seq, int packet) {
 	Packet newPkt;
-
 	newPkt.type = msgType;
 	newPkt.seqNum = seq;
 	newPkt.pktNum = packet;
