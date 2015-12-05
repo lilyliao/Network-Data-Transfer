@@ -188,6 +188,7 @@ int main(int argc, char** argv) {
 			cout << "Received {Corrupted} ACK " << ack.seqNum << endl << endl;
 			continue;
 		}
+		cout << "--------------------------------------" << endl;
 		cout << "Received ACK " << ack.seqNum  << endl << endl;
 
 		// received all acks

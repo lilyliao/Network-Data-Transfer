@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
 			(struct sockaddr*) &servAddr, sizeof(servAddr));
 	}
 
-	cout << "Received all packets" << endl;
+	cout << "Received all packets" << endl << endl;
 	// Write packet contents to file
 	ofstream output;
 	string outputFile = "content.out";

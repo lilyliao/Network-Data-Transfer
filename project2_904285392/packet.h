@@ -27,7 +27,7 @@ Packet createPkt(bool type, int seq, int pktnum) {
 	pkt.seqNum = seq;
 	pkt.pktNum = pktnum;
 
-	return Pkt;
+	return pkt;
 }
 
 #endif /* PACKET_H */
